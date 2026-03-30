@@ -64,37 +64,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     container.appendChild(buildDetailPage(artist, i, artists.length));
   });
 
-  // --- Init StPageFlip ---
+  // --- Init StPageFlip (deferred 1 frame for DOM layout) ---
   // width=innerWidth forces single-page mode: spreading would need 2×innerWidth
   // which exceeds the container, so StPageFlip never enters spread mode.
-  const pageFlip = new St.PageFlip(container, {
-    width: window.innerWidth,
-    height: window.innerHeight,
-    size: 'stretch',
-    minWidth: 320,
-    maxWidth: 3840,
-    minHeight: 400,
-    maxHeight: 2160,
-    usePortrait: true,
-    showCover: true,
-    drawShadow: true,
-    flippingTime: 800,
-    maxShadowOpacity: 0.3,
-    autoSize: true,
-    mobileScrollSupport: false,
-    startZIndex: 0,
-  });
-
-  pageFlip.loadFromHTML(document.querySelectorAll('#magazine .page'));
-
-  // Force layout update after first paint
-  requestAnimationFrame(() => {
-    pageFlip.update();
-  });
-
-  // --- Resize handler ---
-  window.addEventListener('resize', () => {
-    pageFlip.update();
+  const pageFlip = await new Promise(resolve => {
+    requestAnimationFrame(() => {
+      const pf = new St.PageFlip(container, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        size: 'stretch',
+        minWidth: 320,
+        maxWidth: 3840,
+        minHeight: 400,
+        maxHeight: 2160,
+        usePortrait: true,
+        showCover: true,
+        drawShadow: true,
+        flippingTime: 800,
+        maxShadowOpacity: 0.3,
+        autoSize: false,
+        mobileScrollSupport: false,
+        startZIndex: 0,
+      });
+      pf.loadFromHTML(document.querySelectorAll('#magazine .page'));
+      resolve(pf);
+    });
   });
 
   // --- Navigation indicator ---
@@ -170,13 +164,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     pageFlip.flip(pageNum);
     // Reset flag after animation completes
     setTimeout(() => { jumping = false; }, 1200);
-  }
-
-  function turnTo(pageNum) {
-    jumping = true;
-    pageFlip.turnToPage(pageNum);
-    currentPage = pageNum;
-    jumping = false;
   }
 
   // --- Event delegation ---
