@@ -87,6 +87,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   pageFlip.loadFromHTML(document.querySelectorAll('#magazine .page'));
 
+  // --- Resize handler ---
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      pageFlip.update();
+    }, 150);
+  });
+
+  // --- Navigation indicator ---
+  const totalPages = document.querySelectorAll('#magazine .page').length;
+  const navIndicator = document.createElement('div');
+  navIndicator.id = 'nav-indicator';
+  navIndicator.innerHTML = `
+    <span class="nav-arrow" data-dir="prev">&#8592;</span>
+    <span class="nav-page"><span id="nav-current">1</span> / ${Math.min(totalPages, LAST_INDEX + 1)}</span>
+    <span class="nav-arrow" data-dir="next">&#8594;</span>
+    <span class="nav-hint">swipe or click edge</span>`;
+  document.body.appendChild(navIndicator);
+
+  navIndicator.addEventListener('click', (e) => {
+    const arrow = e.target.closest('.nav-arrow');
+    if (!arrow) return;
+    e.stopPropagation();
+    if (arrow.dataset.dir === 'next' && currentPage < LAST_INDEX) {
+      pageFlip.flipNext();
+    } else if (arrow.dataset.dir === 'prev' && currentPage > 0) {
+      pageFlip.flipPrev();
+    }
+  });
+
+  function updateNavIndicator(page) {
+    const navCurrent = document.getElementById('nav-current');
+    if (navCurrent) navCurrent.textContent = page + 1;
+    // Hide on detail pages (back button is the only nav there)
+    navIndicator.classList.toggle('hidden', page >= FIRST_DETAIL);
+  }
+
   // --- Navigation control ---
   let jumping = false;
   let currentPage = 0;
@@ -94,11 +132,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   pageFlip.on('flip', (e) => {
     const dest = e.data;
     currentPage = dest;
+    updateNavIndicator(dest);
 
     // Block unauthorized navigation to detail pages
     if (!jumping && dest > LAST_INDEX) {
       pageFlip.turnToPage(LAST_INDEX);
       currentPage = LAST_INDEX;
+      updateNavIndicator(LAST_INDEX);
       return;
     }
 
@@ -112,6 +152,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           requestAnimationFrame(() => page.classList.add('entered'));
         });
       }
+    }
+  });
+
+  // Hide indicator during flip animation
+  pageFlip.on('changeState', (e) => {
+    if (e.data === 'flipping') {
+      navIndicator.classList.add('hidden');
+    } else if (e.data === 'read') {
+      updateNavIndicator(currentPage);
     }
   });
 
@@ -242,6 +291,14 @@ function buildCoverPage(coverData, artistCount) {
     prompt.innerHTML = 'Click to open &#8594;';
     cov.appendChild(prompt);
 
+    // Admin link
+    const admin = document.createElement('a');
+    admin.href = 'admin.html';
+    admin.className = 'admin-link';
+    admin.textContent = 'admin';
+    admin.addEventListener('click', (e) => e.stopPropagation());
+    cov.appendChild(admin);
+
     page.appendChild(cov);
   } else {
     // Fallback: static cover layout
@@ -264,6 +321,7 @@ function buildCoverPage(coverData, artistCount) {
           </div>
         </div>
         <div class="cov-prompt">Click to open &#8594;</div>
+        <a href="admin.html" class="admin-link" onclick="event.stopPropagation()">admin</a>
       </div>`;
   }
   return page;
