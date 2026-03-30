@@ -65,35 +65,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // --- Init StPageFlip ---
+  // width=innerWidth forces single-page mode: spreading would need 2×innerWidth
+  // which exceeds the container, so StPageFlip never enters spread mode.
   const pageFlip = new St.PageFlip(container, {
     width: window.innerWidth,
     height: window.innerHeight,
     size: 'stretch',
     minWidth: 320,
-    maxWidth: 1920,
+    maxWidth: 3840,
     minHeight: 400,
-    maxHeight: 1200,
+    maxHeight: 2160,
+    usePortrait: true,
+    showCover: true,
     drawShadow: true,
     flippingTime: 800,
-    usePortrait: true,
-    startZIndex: 0,
-    autoSize: true,
     maxShadowOpacity: 0.3,
-    showCover: true,
+    autoSize: true,
     mobileScrollSupport: false,
-    swipeDistance: 30,
-    showPageCorners: true,
+    startZIndex: 0,
   });
 
   pageFlip.loadFromHTML(document.querySelectorAll('#magazine .page'));
 
+  // Force layout update after first paint
+  requestAnimationFrame(() => {
+    pageFlip.update();
+  });
+
   // --- Resize handler ---
-  let resizeTimer;
   window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      pageFlip.update();
-    }, 150);
+    pageFlip.update();
   });
 
   // --- Navigation indicator ---
