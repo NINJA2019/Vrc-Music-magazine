@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRC MUSIC ARCHIVE — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,900;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#18171a;--sf:#222126;--sf2:#2c2b30;--bd:#3a393f;
+  --tx:#e0dfd8;--dm:#88878a;--ac:#7c6df0;--ac2:#9d91f5;
+  --ok:#4ade80;--err:#f87171;
+  --paper:#f5f2eb;--ink:#1a1815;--ink3:#6b6760;
+  --serif:'Instrument Serif',serif;--sans:'DM Sans','Noto Sans JP',sans-serif;--jp:'Noto Sans JP',sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:13px;display:flex;flex-direction:column}
+
+/* Top bar */
+.topbar{height:44px;background:var(--sf);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0}
+.logo{font-weight:900;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--ac2)}
+.tabs{display:flex;gap:2px;margin-left:24px}
+.tab{padding:6px 16px;border-radius:4px;cursor:pointer;font-size:12px;color:var(--dm);transition:all .15s;letter-spacing:.5px}
+.tab:hover{color:var(--tx);background:var(--sf2)}
+.tab.active{color:#fff;background:var(--ac)}
+.status{margin-left:auto;font-size:11px;display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.dot.err{background:var(--err)}
+
+/* Main */
+.main{flex:1;display:flex;overflow:hidden}
+
+/* Panel (page) */
+.panel{display:none;flex:1;overflow:auto}
+.panel.active{display:flex}
+
+/* ===== COVER EDITOR ===== */
+.ce{flex:1;display:flex}
+.ce-sidebar{width:280px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);overflow-y:auto}
+.ce-canvas{flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg);background-image:radial-gradient(circle,#2a292e 1px,transparent 1px);background-size:20px 20px}
+.sec{padding:14px 16px;border-bottom:1px solid var(--bd)}
+.sec-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dm);margin-bottom:8px}
+.row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.row label{font-size:11px;color:var(--dm);min-width:44px;flex-shrink:0}
+.inp{flex:1;background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;color:var(--tx);font-size:12px;font-family:var(--sans);outline:none}
+.inp:focus{border-color:var(--ac)}
+.inp[type="number"]{width:56px;flex:none}
+.inp[type="color"]{width:30px;height:26px;padding:2px;cursor:pointer;flex:none}
+.sel{flex:1;background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:5px 6px;color:var(--tx);font-size:12px;font-family:var(--sans)}
+.btn{width:100%;padding:7px;border:1px solid var(--bd);border-radius:4px;background:var(--sf2);color:var(--tx);cursor:pointer;font-size:11px;letter-spacing:.5px;font-family:var(--sans);transition:all .15s}
+.btn:hover{background:var(--ac);border-color:var(--ac);color:#fff}
+.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.btn.pri:hover{background:var(--ac2)}
+.btn.danger{border-color:#f87171;color:#f87171}
+.btn.danger:hover{background:#f87171;color:#fff}
+.btn+.btn{margin-top:4px}
+
+/* Cover preview */
+.cover{width:480px;height:640px;background:var(--paper);position:relative;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.4);flex-shrink:0}
+.cover-bg{position:absolute;inset:0;background-size:cover;background-position:center}
+.cover-ov{position:absolute;inset:0}
+.cel{position:absolute;cursor:move;user-select:none;outline:2px solid transparent;outline-offset:2px;white-space:pre-wrap;word-break:break-word;line-height:1.6}
+.cel:hover{outline-color:rgba(124,109,240,.4)}
+.cel.sel{outline-color:var(--ac)}
+.cel .rh{position:absolute;bottom:-4px;right:-4px;width:8px;height:8px;background:var(--ac);border:1px solid #fff;border-radius:2px;cursor:nwse-resize;display:none}
+.cel.sel .rh{display:block}
+
+/* Element list */
+.el-list{list-style:none}
+.el-i{padding:6px 10px;border-radius:4px;cursor:pointer;font-size:12px;margin-bottom:2px;display:flex;align-items:center;gap:6px;transition:background .1s}
+.el-i:hover{background:var(--sf2)}
+.el-i.act{background:var(--ac);color:#fff}
+.el-tag{font-size:9px;padding:1px 4px;border-radius:3px;background:var(--bg);color:var(--dm)}
+.el-i.act .el-tag{background:rgba(255,255,255,.2);color:#fff}
+
+/* ===== ARTIST MANAGER ===== */
+.am{flex:1;display:flex}
+.am-list{width:300px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);overflow-y:auto;display:flex;flex-direction:column}
+.am-form{flex:1;padding:24px 32px;overflow-y:auto}
+.am-form h2{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--ac2)}
+.fm-group{margin-bottom:14px}
+.fm-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dm);margin-bottom:4px}
+.fm-inp{width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:8px 10px;color:var(--tx);font-size:13px;font-family:var(--sans);outline:none}
+.fm-inp:focus{border-color:var(--ac)}
+textarea.fm-inp{min-height:80px;resize:vertical}
+.fm-row{display:flex;gap:10px}
+.fm-row .fm-group{flex:1}
+.art-card{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;transition:background .1s}
+.art-card:hover{background:var(--sf2)}
+.art-card.act{background:var(--ac);color:#fff}
+.art-thumb{width:36px;height:36px;border-radius:4px;background:var(--sf2);object-fit:cover}
+.art-info{flex:1;overflow:hidden}
+.art-info .n{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.art-info .g{font-size:10px;color:var(--dm)}
+.art-card.act .art-info .g{color:rgba(255,255,255,.6)}
+.pub-badge{font-size:9px;padding:1px 6px;border-radius:3px;background:var(--ok);color:#000}
+.unpub-badge{font-size:9px;padding:1px 6px;border-radius:3px;background:var(--sf2);color:var(--dm)}
+
+/* toast */
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 18px;border-radius:6px;font-size:12px;color:#fff;z-index:999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.ok{background:#16a34a}
+.toast.err{background:#dc2626}
+.hide{display:none}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">VRC Archive Admin</span>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('cover')">Cover editor</div>
+    <div class="tab" onclick="switchTab('artists')">Artists</div>
+  </div>
+  <div class="status"><div class="dot" id="statusDot"></div><span id="statusText">Connected</span></div>
+</div>
+
+<div class="main">
+  <!-- COVER EDITOR -->
+  <div class="panel active" id="panel-cover">
+    <div class="ce">
+      <div class="ce-sidebar">
+        <div class="sec">
+          <div class="sec-label">Elements</div>
+          <ul class="el-list" id="elList"></ul>
+          <button class="btn" onclick="CE.addEl()">+ Add text</button>
+        </div>
+        <div class="sec hide" id="propsPanel">
+          <div class="sec-label">Properties</div>
+          <div class="row"><label>Text</label><input class="inp" id="pText" oninput="CE.setProp('text',this.value)"></div>
+          <div class="row"><label>X</label><input class="inp" type="number" id="pX" oninput="CE.setProp('x',+this.value)"><label style="min-width:16px">Y</label><input class="inp" type="number" id="pY" oninput="CE.setProp('y',+this.value)"></div>
+          <div class="row"><label>Size</label><input class="inp" type="number" id="pSize" min="8" max="120" oninput="CE.setProp('fontSize',+this.value)"></div>
+          <div class="row"><label>Weight</label><select class="sel" id="pWeight" onchange="CE.setProp('fontWeight',this.value)"><option value="300">Light</option><option value="400">Regular</option><option value="500">Medium</option><option value="700">Bold</option><option value="900">Black</option></select></div>
+          <div class="row"><label>Font</label><select class="sel" id="pFont" onchange="CE.setProp('fontFamily',this.value)"><option value="Noto Sans JP">Noto Sans JP</option><option value="DM Sans">DM Sans</option><option value="Instrument Serif">Instrument Serif</option></select></div>
+          <div class="row"><label>Color</label><input class="inp" type="color" id="pColor" oninput="CE.setProp('color',this.value)"></div>
+          <div class="row"><label>Italic</label><input type="checkbox" id="pItalic" onchange="CE.setProp('italic',this.checked)"></div>
+          <button class="btn danger" onclick="CE.deleteEl()">Delete</button>
+        </div>
+        <div class="sec">
+          <div class="sec-label">Background</div>
+          <button class="btn" onclick="document.getElementById('bgUp').click()">Upload image</button>
+          <input type="file" id="bgUp" class="hide" accept="image/*" onchange="CE.uploadBg(this)">
+          <button class="btn" onclick="CE.removeBg()">Remove</button>
+          <div class="row" style="margin-top:8px"><label>Overlay</label><input class="inp" type="color" id="bgOvColor" value="#000000" oninput="CE.updateOv()"></div>
+          <div class="row"><label>Alpha</label><input class="inp" type="number" id="bgOvAlpha" value="0" min="0" max="100" oninput="CE.updateOv()">%</div>
+        </div>
+        <div class="sec">
+          <button class="btn pri" onclick="CE.save()">Save to Supabase</button>
+          <button class="btn" onclick="CE.load()">Reload</button>
+        </div>
+      </div>
+      <div class="ce-canvas" onclick="CE.deselect(event)">
+        <div class="cover" id="cover">
+          <div class="cover-bg" id="coverBg"></div>
+          <div class="cover-ov" id="coverOv"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARTIST MANAGER -->
+  <div class="panel" id="panel-artists">
+    <div class="am">
+      <div class="am-list">
+        <div class="sec" style="flex-shrink:0">
+          <button class="btn pri" onclick="AM.newArtist()">+ New artist</button>
+        </div>
+        <div id="artistList" style="flex:1;overflow-y:auto"></div>
+      </div>
+      <div class="am-form" id="artistForm" style="display:none">
+        <h2 id="afTitle">New artist</h2>
+        <div class="fm-row">
+          <div class="fm-group"><div class="fm-label">Name</div><input class="fm-inp" id="afName"></div>
+          <div class="fm-group"><div class="fm-label">Name (EN)</div><input class="fm-inp" id="afNameEn"></div>
+        </div>
+        <div class="fm-group"><div class="fm-label">Genre</div><input class="fm-inp" id="afGenre"></div>
+        <div class="fm-group"><div class="fm-label">Bio</div><textarea class="fm-inp" id="afBio"></textarea></div>
+        <div class="fm-group">
+          <div class="fm-label">Artwork</div>
+          <button class="btn" onclick="document.getElementById('artUp').click()" style="width:auto;padding:6px 16px">Upload artwork</button>
+          <input type="file" id="artUp" class="hide" accept="image/*" onchange="AM.uploadArt(this)">
+          <img id="afArtPreview" style="display:none;margin-top:8px;max-width:200px;border-radius:4px">
+        </div>
+        <div class="fm-group"><div class="fm-label">Links (JSON array)</div><textarea class="fm-inp" id="afLinks" placeholder='["YouTube", "SoundCloud"]' style="min-height:40px"></textarea></div>
+        <div class="fm-group"><div class="fm-label">Tracks (JSON array)</div><textarea class="fm-inp" id="afTracks" placeholder='[{"t":"track name","d":"3:42"}]' style="min-height:60px"></textarea></div>
+        <div class="fm-row" style="margin-top:16px;gap:8px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dm)"><input type="checkbox" id="afPublished"> Published</label>
+          <div style="flex:1"></div>
+          <button class="btn pri" onclick="AM.save()" style="width:auto;padding:6px 24px">Save</button>
+          <button class="btn danger" onclick="AM.del()" id="afDelBtn" style="width:auto;padding:6px 16px;display:none">Delete</button>
+        </div>
+      </div>
+      <div class="am-form" id="artistEmpty" style="display:flex;align-items:center;justify-content:center;color:var(--dm)">Select or create an artist</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPA_URL='https://rnlgcvrmkdysqvpvfmol.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubGdjdnJta2R5c3F2cHZmbW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NjI1NjAsImV4cCI6MjA5MDQzODU2MH0.VKTpIjUloWoqMDdQ8_S_J4qETOPrIpDBvzPiYunqj3k';
+const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
+
+function toast(msg,ok=true){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast show '+(ok?'ok':'err');
+  setTimeout(()=>t.className='toast',2500);
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['cover','artists'][i]===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  if(name==='artists')AM.loadList();
+}
+
+// Resize image client-side before upload
+async function resizeImage(file,maxW=800){
+  return new Promise(r=>{
+    const img=new Image();
+    img.onload=()=>{
+      const c=document.createElement('canvas');
+      let w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*(maxW/w));w=maxW}
+      c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      c.toBlob(b=>r(b),'image/webp',0.82);
+    };
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+// ===== COVER EDITOR =====
+const CE={
+  els:[
+    {id:'mast-label',text:'VRC Music',x:32,y:32,fontSize:10,fontWeight:'900',fontFamily:'DM Sans',color:'#1a1815',italic:false},
+    {id:'mast-title',text:'ARCHIVE',x:32,y:46,fontSize:34,fontWeight:'900',fontFamily:'DM Sans',color:'#1a1815',italic:false},
+    {id:'issue',text:'01',x:410,y:30,fontSize:36,fontWeight:'400',fontFamily:'Instrument Serif',color:'#1a1815',italic:true},
+    {id:'date',text:'2026/03/30 定価600円',x:358,y:72,fontSize:9,fontWeight:'400',fontFamily:'DM Sans',color:'#6b6760',italic:false},
+    {id:'headline',text:'VRChat生活圏から\n生まれた音楽を、\nはじめてURLとして\n記録する。',x:32,y:200,fontSize:28,fontWeight:'900',fontFamily:'Noto Sans JP',color:'#1a1815',italic:false},
+    {id:'sub',text:'70組以上のVRChat音楽クリエイターを\n体系的にアーカイブする初のWebカタログ。',x:32,y:430,fontSize:12,fontWeight:'400',fontFamily:'Noto Sans JP',color:'#6b6760',italic:false},
+    {id:'footer',text:'Free & Open',x:400,y:612,fontSize:9,fontWeight:'400',fontFamily:'DM Sans',color:'#a09b94',italic:false},
+  ],
+  selId:null,bgUrl:null,configId:null,
+
+  render(){
+    const cv=document.getElementById('cover');
+    cv.querySelectorAll('.cel').forEach(e=>e.remove());
+    const list=document.getElementById('elList');
+    list.innerHTML='';
+    this.els.forEach(el=>{
+      const d=document.createElement('div');
+      d.className='cel'+(el.id===this.selId?' sel':'');
+      d.dataset.id=el.id;
+      Object.assign(d.style,{left:el.x+'px',top:el.y+'px',fontSize:el.fontSize+'px',fontWeight:el.fontWeight,fontFamily:el.fontFamily+',sans-serif',color:el.color,fontStyle:el.italic?'italic':'normal',letterSpacing:(el.letterSpacing||0)+'px'});
+      d.innerHTML='<div class="rh"></div>'+el.text.replace(/\n/g,'<br>');
+      d.addEventListener('mousedown',e=>this.startDrag(e,el));
+      d.addEventListener('dblclick',e=>this.startEdit(e,el));
+      d.querySelector('.rh').addEventListener('mousedown',e=>{e.stopPropagation();this.startResize(e,el)});
+      cv.appendChild(d);
+
+      const li=document.createElement('li');
+      li.className='el-i'+(el.id===this.selId?' act':'');
+      li.innerHTML=`<span class="el-tag">T</span>${el.text.split('\n')[0].substring(0,18)}`;
+      li.onclick=()=>this.select(el.id);
+      list.appendChild(li);
+    });
+    this.updateProps();
+  },
+
+  select(id){this.selId=id;document.getElementById('propsPanel').classList.remove('hide');this.render()},
+  deselect(e){if(e.target.closest('.cel')||e.target.closest('.ce-sidebar'))return;this.selId=null;document.getElementById('propsPanel').classList.add('hide');this.render()},
+
+  updateProps(){
+    const el=this.els.find(e=>e.id===this.selId);if(!el)return;
+    document.getElementById('pText').value=el.text;
+    document.getElementById('pX').value=el.x;document.getElementById('pY').value=el.y;
+    document.getElementById('pSize').value=el.fontSize;
+    document.getElementById('pWeight').value=el.fontWeight;
+    document.getElementById('pFont').value=el.fontFamily;
+    document.getElementById('pColor').value=el.color;
+    document.getElementById('pItalic').checked=el.italic;
+  },
+  setProp(k,v){const el=this.els.find(e=>e.id===this.selId);if(el){el[k]=v;this.render()}},
+
+  startDrag(e,el){
+    if(e.target.classList.contains('rh'))return;e.preventDefault();this.select(el.id);
+    const r=document.getElementById('cover').getBoundingClientRect();
+    const ox=e.clientX-el.x-r.left,oy=e.clientY-el.y-r.top;
+    const mv=e=>{el.x=Math.round(Math.max(0,e.clientX-r.left-ox));el.y=Math.round(Math.max(0,e.clientY-r.top-oy));this.render()};
+    const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up)};
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+  },
+  startResize(e,el){
+    e.preventDefault();const sx=e.clientX,ss=el.fontSize;
+    const mv=e=>{el.fontSize=Math.max(8,Math.round(ss+(e.clientX-sx)*.3));this.render()};
+    const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up)};
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+  },
+  startEdit(e,el){
+    const d=document.getElementById('cover').querySelector(`[data-id="${el.id}"]`);if(!d)return;
+    d.contentEditable=true;d.focus();
+    d.onblur=()=>{d.contentEditable=false;el.text=d.innerText;this.render()};
+  },
+  addEl(){
+    const id='t'+Date.now();
+    this.els.push({id,text:'New text',x:100,y:300,fontSize:16,fontWeight:'400',fontFamily:'Noto Sans JP',color:'#1a1815',italic:false});
+    this.select(id);
+  },
+  deleteEl(){if(!this.selId)return;this.els=this.els.filter(e=>e.id!==this.selId);this.selId=null;document.getElementById('propsPanel').classList.add('hide');this.render()},
+
+  async uploadBg(input){
+    const file=input.files[0];if(!file)return;
+    const blob=await resizeImage(file,1200);
+    const name='cover_'+Date.now()+'.webp';
+    const{data,error}=await sb.storage.from('covers').upload(name,blob,{contentType:'image/webp',upsert:true});
+    if(error){toast('Upload failed: '+error.message,false);return}
+    const{data:pub}=sb.storage.from('covers').getPublicUrl(name);
+    this.bgUrl=pub.publicUrl;
+    document.getElementById('coverBg').style.backgroundImage=`url(${this.bgUrl})`;
+    toast('Background uploaded');input.value='';
+  },
+  removeBg(){this.bgUrl=null;document.getElementById('coverBg').style.backgroundImage='none'},
+  updateOv(){
+    const c=document.getElementById('bgOvColor').value,o=document.getElementById('bgOvAlpha').value/100;
+    const[r,g,b]=[c.slice(1,3),c.slice(3,5),c.slice(5,7)].map(h=>parseInt(h,16));
+    document.getElementById('coverOv').style.background=`rgba(${r},${g},${b},${o})`;
+  },
+
+  async save(){
+    const config={elements:this.els,overlay:{color:document.getElementById('bgOvColor').value,alpha:+document.getElementById('bgOvAlpha').value}};
+    if(this.configId){
+      const{error}=await sb.from('cover_configs').update({config,background_url:this.bgUrl,is_active:true}).eq('id',this.configId);
+      if(error){toast('Save failed: '+error.message,false);return}
+    }else{
+      const{data,error}=await sb.from('cover_configs').insert({name:'default',config,background_url:this.bgUrl,is_active:true}).select();
+      if(error){toast('Save failed: '+error.message,false);return}
+      this.configId=data[0].id;
+    }
+    toast('Cover saved!');
+  },
+
+  async load(){
+    const{data}=await sb.from('cover_configs').select('*').eq('is_active',true).limit(1);
+    if(data&&data.length){
+      const c=data[0];this.configId=c.id;
+      if(c.config.elements)this.els=c.config.elements;
+      if(c.background_url){this.bgUrl=c.background_url;document.getElementById('coverBg').style.backgroundImage=`url(${this.bgUrl})`}
+      if(c.config.overlay){
+        document.getElementById('bgOvColor').value=c.config.overlay.color||'#000000';
+        document.getElementById('bgOvAlpha').value=c.config.overlay.alpha||0;
+        this.updateOv();
+      }
+      this.render();toast('Cover loaded');
+    }else{this.render();toast('No saved cover, using defaults')}
+  }
+};
+
+// Keyboard for cover editor
+document.addEventListener('keydown',e=>{
+  if(!CE.selId||e.target.contentEditable==='true'||e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+  const el=CE.els.find(x=>x.id===CE.selId);if(!el)return;
+  const s=e.shiftKey?10:1;
+  if(e.key==='ArrowLeft'){el.x-=s;CE.render();e.preventDefault()}
+  if(e.key==='ArrowRight'){el.x+=s;CE.render();e.preventDefault()}
+  if(e.key==='ArrowUp'){el.y-=s;CE.render();e.preventDefault()}
+  if(e.key==='ArrowDown'){el.y+=s;CE.render();e.preventDefault()}
+});
+
+// ===== ARTIST MANAGER =====
+const AM={
+  list:[],current:null,artworkUrl:null,
+
+  async loadList(){
+    const{data}=await sb.from('artists').select('*').order('sort_order');
+    this.list=data||[];this.renderList();
+  },
+  renderList(){
+    const c=document.getElementById('artistList');c.innerHTML='';
+    this.list.forEach(a=>{
+      const d=document.createElement('div');
+      d.className='art-card'+(this.current&&this.current.id===a.id?' act':'');
+      d.innerHTML=`
+        ${a.artwork_url?`<img class="art-thumb" src="${a.artwork_url}">`:'<div class="art-thumb"></div>'}
+        <div class="art-info"><div class="n">${a.name}</div><div class="g">${a.genre||''}</div></div>
+        ${a.is_published?'<span class="pub-badge">Live</span>':'<span class="unpub-badge">Draft</span>'}`;
+      d.onclick=()=>this.selectArtist(a);
+      c.appendChild(d);
+    });
+  },
+  selectArtist(a){
+    this.current=a;this.artworkUrl=a.artwork_url;
+    document.getElementById('artistForm').style.display='';
+    document.getElementById('artistEmpty').style.display='none';
+    document.getElementById('afTitle').textContent=a.id?'Edit artist':'New artist';
+    document.getElementById('afName').value=a.name||'';
+    document.getElementById('afNameEn').value=a.name_en||'';
+    document.getElementById('afGenre').value=a.genre||'';
+    document.getElementById('afBio').value=a.bio||'';
+    document.getElementById('afLinks').value=JSON.stringify(a.links||[]);
+    document.getElementById('afTracks').value=JSON.stringify(a.tracks||[]);
+    document.getElementById('afPublished').checked=a.is_published;
+    const prev=document.getElementById('afArtPreview');
+    if(a.artwork_url){prev.src=a.artwork_url;prev.style.display='block'}else{prev.style.display='none'}
+    document.getElementById('afDelBtn').style.display=a.id?'':'none';
+    this.renderList();
+  },
+  newArtist(){
+    this.selectArtist({name:'',name_en:'',genre:'',bio:'',artwork_url:null,links:[],tracks:[],is_published:false});
+  },
+  async uploadArt(input){
+    const file=input.files[0];if(!file)return;
+    const blob=await resizeImage(file,800);
+    const name='art_'+Date.now()+'.webp';
+    const{error}=await sb.storage.from('artwork').upload(name,blob,{contentType:'image/webp'});
+    if(error){toast('Upload failed: '+error.message,false);return}
+    const{data:pub}=sb.storage.from('artwork').getPublicUrl(name);
+    this.artworkUrl=pub.publicUrl;
+    const prev=document.getElementById('afArtPreview');prev.src=this.artworkUrl;prev.style.display='block';
+    toast('Artwork uploaded');input.value='';
+  },
+  async save(){
+    const row={
+      name:document.getElementById('afName').value,
+      name_en:document.getElementById('afNameEn').value,
+      genre:document.getElementById('afGenre').value,
+      bio:document.getElementById('afBio').value,
+      artwork_url:this.artworkUrl,
+      is_published:document.getElementById('afPublished').checked,
+      sort_order:this.list.length,
+    };
+    try{row.links=JSON.parse(document.getElementById('afLinks').value||'[]')}catch{row.links=[]}
+    try{row.tracks=JSON.parse(document.getElementById('afTracks').value||'[]')}catch{row.tracks=[]}
+
+    if(this.current&&this.current.id){
+      const{error}=await sb.from('artists').update(row).eq('id',this.current.id);
+      if(error){toast('Save failed: '+error.message,false);return}
+    }else{
+      const{data,error}=await sb.from('artists').insert(row).select();
+      if(error){toast('Save failed: '+error.message,false);return}
+      this.current=data[0];
+    }
+    toast('Artist saved!');await this.loadList();
+  },
+  async del(){
+    if(!this.current||!this.current.id)return;
+    if(!confirm('Delete '+this.current.name+'?'))return;
+    await sb.from('artists').delete().eq('id',this.current.id);
+    this.current=null;this.artworkUrl=null;
+    document.getElementById('artistForm').style.display='none';
+    document.getElementById('artistEmpty').style.display='flex';
+    toast('Deleted');await this.loadList();
+  }
+};
+
+// Init
+CE.load();
+</script>
+</body>
+</html>
